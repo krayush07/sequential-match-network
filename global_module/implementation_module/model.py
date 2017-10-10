@@ -13,22 +13,31 @@ class SMN():
         self.create_placeholders()
         self.extract_word_embedding()
         self.extract_hidden_embedding('layer1')
+        self.compute_matching_matrix()
 
     def create_placeholders(self):
-        self.num_context_with_resp = self.params.NUM_CONTEXT + 1
-        self.ctx_with_resp = tf.placeholder(dtype=tf.int32,
-                                            shape=[None,
-                                                   self.num_context_with_resp,
-                                                   self.params.MAX_UTT_SEQ_LENGTH],
-                                            name='ctx_resp_placeholder')
-
-        self.seq_len_placeholders = tf.placeholder(dtype=tf.int32,
-                                                   shape=[None, self.num_context_with_resp],
-                                                   name='seq_len_placeholder')
+        # self.num_context_with_resp = self.params.NUM_CONTEXT + 1
+        self.ctx = tf.placeholder(dtype=tf.int32,
+                                  shape=[None,
+                                         self.params.NUM_CONTEXT,
+                                         self.params.MAX_UTT_SEQ_LENGTH],
+                                  name='ctx_placeholder')
 
         self.ctx_len_placeholders = tf.placeholder(dtype=tf.int32,
-                                                   shape=[None],
+                                                   shape=[None, self.params.NUM_CONTEXT],
                                                    name='ctx_len_placeholder')
+
+        self.num_ctx_placeholders = tf.placeholder(dtype=tf.int32,
+                                                   shape=[None],
+                                                   name='num_ctx_placeholder')
+
+        self.resp = tf.placeholder(dtype=tf.int32,
+                                   shape=[None, self.params.MAX_UTT_SEQ_LENGTH],
+                                   name='res_placeholder')
+
+        self.resp_len_placeholders = tf.placeholder(dtype=tf.int32,
+                                                    shape=[None],
+                                                    name='resp_len_placeholder')
 
         self.label = tf.placeholder(dtype=tf.float32,
                                     shape=[None],
@@ -78,6 +87,11 @@ class SMN():
                                         name='layer1_state')
 
             print 'Extracted rnn hidden states.'
+
+    def compute_matching_matrix(self):
+        word_emb_split = tf.split(self.ctx_resp_word_emb, num_or_size_splits=self.num_context_with_resp, axis=1)
+        hidden_emb_split = tf.split(self.rnn_state, self.num_context_with_resp, axis=1)
+        print 'Matching matrix computation done.'
 
 
 def main():
