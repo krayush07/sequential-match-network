@@ -13,7 +13,8 @@ class SMN():
         self.create_placeholders()
         self.extract_word_embedding()
         self.initial_hidden_state()
-        self.compute_matching_matrix()
+        word_matching_matrix, hidden_emb_matching_matrix = self.compute_matching_matrix()
+        self.conv_pipeline_init(word_matching_matrix)
 
     def initial_hidden_state(self):
         self.extract_ctx_hidden_embedding('layer1')
@@ -140,6 +141,69 @@ class SMN():
             hidden_matching_matrix.append(mul2)
 
         print 'Matching matrix computation done.'
+        return word_matching_matrix, hidden_matching_matrix
+
+
+    def conv_layer(self, conv_input, filter_shape, num_filters, stride, padding, name):
+        with tf.variable_scope(name) as scope:
+            try:
+                weights = tf.get_variable(name='weights', shape=filter_shape, regularizer=tf.contrib.layers.l2_regularizer(scale=0.01),
+                                          initializer=tf.random_uniform_initializer(minval=-0.1, maxval=0.1))
+                biases = tf.get_variable(name='biases', shape=[num_filters], regularizer=tf.contrib.layers.l2_regularizer(0.0),
+                                         initializer=tf.constant_initializer(0.0))
+            except ValueError:
+                scope.reuse_variables()
+                weights = tf.get_variable(name='weights', shape=filter_shape, regularizer=tf.contrib.layers.l2_regularizer(scale=0.01),
+                                          initializer=tf.random_uniform_initializer(minval=-0.1, maxval=0.1))
+                biases = tf.get_variable(name='biases', shape=[num_filters], regularizer=tf.contrib.layers.l2_regularizer(0.0),
+                                         initializer=tf.constant_initializer(0.0))
+            # conv_input_nhwc = tf.transpose(conv_input, perm=[1,2,3,0], name='conv_input_nhwc')
+            # kernel = tf.transpose(weights, perm=[0,2,1,3], name='kernel_nhwc')
+            # conv = tf.nn.conv2d(conv_input, filter=weights, strides=stride, padding=padding)
+            conv = tf.nn.conv2d(conv_input, filter=weights, strides=stride, padding=padding)
+            # scope.reuse_variables()
+            return tf.nn.relu(conv + biases)
+
+    def conv_output(self, conv_input, kernel, strides, num_filters, padding, name):
+        return self.conv_layer(conv_input, kernel, num_filters, strides, padding, name)
+
+    def pool_output(self, pool_input, ksize, stride, padding, name):
+        return tf.nn.max_pool(pool_input, ksize, stride, padding, name='pool')
+
+    def conv_pipeline_init(self, cnn_input):
+        num_filters = self.params.num_filters[0]
+
+        all_context_pool_output = []
+
+        with tf.variable_scope('utt_view_cnn') as scope:
+            for i in range(len(cnn_input)):
+                # curr_context_utt_view_word_feature = tf.nn.embedding_lookup(self.word_emb_matrix, tf.squeeze(cnn_input[i]), name='utt_context_emb_' + str(i))
+                pool_output = []
+                for layer_num in range(len(self.params.filter_width)):
+                    curr_pool_output = self.conv_layer_pipeline(layer_num, num_filters, tf.expand_dims(cnn_input[i], -1))
+                    # scope.reuse_variables()
+                    pool_output.append(curr_pool_output)
+                all_context_pool_output.append(pool_output)
+
+
+    def conv_layer_pipeline(self, layer_num, num_filters, cnn_input):
+
+        filter_width = self.params.filter_width[layer_num]
+        # num_filters = self.params.num_filters[layer_num]
+
+        # with tf.variable_scope('utt_view_kernel_' + str(layer_num)) as scope:
+        conv1_output = self.conv_output(cnn_input, [filter_width, self.params.EMB_DIM, 1, num_filters], [1, 1, 1, 1], num_filters, 'VALID', 'conv1_' + str(layer_num))
+        print('utt view layer ' + str(layer_num) + ' convolution 1: DONE')
+        # scope.reuse_variables()
+
+        pool2_output = self.pool_output(conv1_output, ksize=[1, 10, 1, 1], stride=[1, 3, 1, 1], padding='VALID', name='pool2')
+        print('utt view layer ' + str(layer_num) + ' max pooling 1: DONE')
+        # scope.reuse_variables()
+
+        print('utt view cnn output: DONE')
+
+        return pool2_output
+
 
 
 def main():
