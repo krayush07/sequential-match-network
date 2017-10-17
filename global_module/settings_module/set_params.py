@@ -28,10 +28,12 @@ class ParamsClass():
         self.MAX_SEQ_LEN = 60
         self.EMB_DIM = 300
         self.NUM_CONTEXT = 4
-        self.MAX_UTT_SEQ_LENGTH = 50
+        self.MAX_CTX_UTT_LENGTH = 40
+        self.MAX_RESP_UTT_LENGTH = 60
         self.RNN_HIDDEN_DIM = 100
 
         self.rnn = 'lstm'
+        self.USE_SAME_CELL = False
 
         self.batch_size = 32
         self.vocab_size = 30
