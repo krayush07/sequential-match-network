@@ -14,7 +14,9 @@ class SMN():
         self.extract_word_embedding()
         self.initial_hidden_state()
         word_matching_matrix, hidden_emb_matching_matrix = self.compute_matching_matrix()
-        self.conv_pipeline_init(word_matching_matrix)
+        conv_word_output = self.conv_pipeline_init(word_matching_matrix, 'word_conv')
+        conv_hidden_output = self.conv_pipeline_init(hidden_emb_matching_matrix, 'hidden_conv')
+        self.matching_accumulation(conv_word_output, conv_hidden_output)
 
     def initial_hidden_state(self):
         self.extract_ctx_hidden_embedding('layer1')
@@ -170,39 +172,62 @@ class SMN():
     def pool_output(self, pool_input, ksize, stride, padding, name):
         return tf.nn.max_pool(pool_input, ksize, stride, padding, name='pool')
 
-    def conv_pipeline_init(self, cnn_input):
-        num_filters = self.params.num_filters[0]
+    def conv_pipeline_init(self, cnn_input, conv_name):
+        num_filters = self.params.num_filters
 
         all_context_pool_output = []
 
-        with tf.variable_scope('utt_view_cnn') as scope:
+        with tf.variable_scope(conv_name) as scope:
             for i in range(len(cnn_input)):
                 # curr_context_utt_view_word_feature = tf.nn.embedding_lookup(self.word_emb_matrix, tf.squeeze(cnn_input[i]), name='utt_context_emb_' + str(i))
                 pool_output = []
                 for layer_num in range(len(self.params.filter_width)):
-                    curr_pool_output = self.conv_layer_pipeline(layer_num, num_filters, tf.expand_dims(cnn_input[i], -1))
+                    curr_pool_output = self.conv_layer_pipeline(layer_num, num_filters, tf.expand_dims(cnn_input[i], -1), conv_name)
                     # scope.reuse_variables()
                     pool_output.append(curr_pool_output)
+                print('Context ' + str(i) + ' convolution and max-pool ' + conv_name + ': DONE')
                 all_context_pool_output.append(pool_output)
+            return all_context_pool_output
 
 
-    def conv_layer_pipeline(self, layer_num, num_filters, cnn_input):
+    def conv_layer_pipeline(self, layer_num, num_filters, cnn_input, conv_name):
 
         filter_width = self.params.filter_width[layer_num]
         # num_filters = self.params.num_filters[layer_num]
 
         # with tf.variable_scope('utt_view_kernel_' + str(layer_num)) as scope:
-        conv1_output = self.conv_output(cnn_input, [filter_width, self.params.EMB_DIM, 1, num_filters], [1, 1, 1, 1], num_filters, 'VALID', 'conv1_' + str(layer_num))
-        print('utt view layer ' + str(layer_num) + ' convolution 1: DONE')
+        conv1_output = self.conv_output(cnn_input, [filter_width, self.params.MAX_RESP_UTT_LENGTH, 1, num_filters], [1, 1, 1, 1], num_filters, 'VALID', 'conv1_' + str(layer_num))
+        # print('Context ' + str(layer_num) + ' convolution ' + conv_name + ': DONE')
         # scope.reuse_variables()
 
         pool2_output = self.pool_output(conv1_output, ksize=[1, 10, 1, 1], stride=[1, 3, 1, 1], padding='VALID', name='pool2')
-        print('utt view layer ' + str(layer_num) + ' max pooling 1: DONE')
+        # print('Context' + str(layer_num) + ' max pooling ' + conv_name + ': DONE')
         # scope.reuse_variables()
 
-        print('utt view cnn output: DONE')
+        # print(conv_name + ' CNN pipeline: DONE')
 
         return pool2_output
+
+    def matching_accumulation(self, word_input, hidden_input):
+        with tf.variable_scope('matching_accumulation'):
+            concat_word_input = []
+            concat_hidden_input = []
+            for i in range(len(word_input)):
+                concat_word_input.append(tf.concat(word_input[i], axis=1))
+                concat_hidden_input.append(tf.concat(hidden_input[i], axis=1))
+
+            flat_word_input = []
+            flat_hidden_input = []
+
+            word_input_axis_1_dim = concat_word_input[0][0].shape.dims[0].value
+            hidden_input_axis_1_dim = concat_hidden_input[0][0].shape.dims[0].value
+
+            for i in range(len(word_input)):
+                flat_word_input.append(tf.expand_dims(tf.reshape(concat_word_input, [-1, word_input_axis_1_dim * self.params.num_filters]), 1))
+                flat_hidden_input.append(tf.expand_dims(tf.reshape(concat_hidden_input, [-1, hidden_input_axis_1_dim * self.params.num_filters]), 1))
+
+            context_word_input = tf.concat(flat_word_input, axis=1)
+            context_hidden_input = tf.concat(flat_hidden_input, axis=1)
 
 
 

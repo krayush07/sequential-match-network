@@ -48,8 +48,8 @@ class ParamsClass():
         self.sampling_threshold = 2
 
         ''' PARAMS FOR CONV BLOCK '''
-        self.num_filters = [128]
-        self.filter_width = [[2, 3, 5, 7, 9]]
+        self.num_filters = 128
+        self.filter_width = [2, 3, 5, 7, 9]
         self.conv_activation = 'RELU'
         self.conv_padding = 'VALID'
 
