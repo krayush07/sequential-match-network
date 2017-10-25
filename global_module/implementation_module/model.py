@@ -12,13 +12,19 @@ class SMN():
     def init_pipeline(self):
         self.create_placeholders()
         self.extract_word_embedding()
-        self.initial_hidden_state()
+        self.get_initial_hidden_state()
         word_matching_matrix, hidden_emb_matching_matrix = self.compute_matching_matrix()
+        conv_hidden_output, conv_word_output = self.get_cnn_output(hidden_emb_matching_matrix, word_matching_matrix)
+        accumulated_word_match, accumulated_hidden_match = self.get_accumulated_match(conv_word_output, conv_hidden_output)
+        self.get_final_hidden_state(accumulated_word_match, accumulated_hidden_match)
+        # self.compute_loss()
+
+    def get_cnn_output(self, hidden_emb_matching_matrix, word_matching_matrix):
         conv_word_output = self.conv_pipeline_init(word_matching_matrix, 'word_conv')
         conv_hidden_output = self.conv_pipeline_init(hidden_emb_matching_matrix, 'hidden_conv')
-        self.matching_accumulation(conv_word_output, conv_hidden_output)
+        return conv_hidden_output, conv_word_output
 
-    def initial_hidden_state(self):
+    def get_initial_hidden_state(self):
         self.extract_ctx_hidden_embedding('layer1')
         self.extract_resp_hidden_embedding('layer1')
 
@@ -68,15 +74,15 @@ class SMN():
 
         print 'Extracted word embedding'
 
-    def create_rnn_cell(self, scope, option='lstm'):
+    def create_rnn_cell(self, name, option='lstm'):
         if option == 'lstm':
-            with tf.variable_scope(scope):
+            with tf.variable_scope(name):
                 rnn_cell = tf.contrib.rnn.BasicLSTMCell(num_units=self.params.RNN_HIDDEN_DIM, forget_bias=1.0)
                 rnn_cell = tf.contrib.rnn.DropoutWrapper(rnn_cell, input_keep_prob=self.params.keep_prob)
                 return rnn_cell
 
         elif option == 'gru':
-            with tf.variable_scope(scope):
+            with tf.variable_scope(name):
                 rnn_cell = tf.contrib.rnn.GRUCell(num_units=self.params.RNN_HIDDEN_DIM)
                 rnn_cell = tf.contrib.rnn.DropoutWrapper(rnn_cell, input_keep_prob=self.params.keep_prob)
                 return rnn_cell
@@ -145,7 +151,6 @@ class SMN():
         print 'Matching matrix computation done.'
         return word_matching_matrix, hidden_matching_matrix
 
-
     def conv_layer(self, conv_input, filter_shape, num_filters, stride, padding, name):
         with tf.variable_scope(name) as scope:
             try:
@@ -177,7 +182,7 @@ class SMN():
 
         all_context_pool_output = []
 
-        with tf.variable_scope(conv_name) as scope:
+        with tf.variable_scope(conv_name):
             for i in range(len(cnn_input)):
                 # curr_context_utt_view_word_feature = tf.nn.embedding_lookup(self.word_emb_matrix, tf.squeeze(cnn_input[i]), name='utt_context_emb_' + str(i))
                 pool_output = []
@@ -188,7 +193,6 @@ class SMN():
                 print('Context ' + str(i) + ' convolution and max-pool ' + conv_name + ': DONE')
                 all_context_pool_output.append(pool_output)
             return all_context_pool_output
-
 
     def conv_layer_pipeline(self, layer_num, num_filters, cnn_input, conv_name):
 
@@ -208,7 +212,7 @@ class SMN():
 
         return pool2_output
 
-    def matching_accumulation(self, word_input, hidden_input):
+    def get_accumulated_match(self, word_input, hidden_input):
         with tf.variable_scope('matching_accumulation'):
             concat_word_input = []
             concat_hidden_input = []
@@ -226,8 +230,25 @@ class SMN():
                 flat_word_input.append(tf.expand_dims(tf.reshape(concat_word_input, [-1, word_input_axis_1_dim * self.params.num_filters]), 1))
                 flat_hidden_input.append(tf.expand_dims(tf.reshape(concat_hidden_input, [-1, hidden_input_axis_1_dim * self.params.num_filters]), 1))
 
-            context_word_input = tf.concat(flat_word_input, axis=1)
-            context_hidden_input = tf.concat(flat_hidden_input, axis=1)
+            accumulated_word_match = tf.concat(flat_word_input, axis=1)
+            accumulated_hidden_match = tf.concat(flat_hidden_input, axis=1)
+
+            return accumulated_word_match, accumulated_hidden_match
+
+    def get_final_hidden_state(self, word_input, hidden_input):
+        with tf.variable_scope('final_layer'):
+            final_input = tf.concat([word_input, hidden_input], axis=2)
+            rnn_cell = self.create_rnn_cell('last_layer', option=self.params.rnn)
+
+            final_output, final_state = tf.nn.dynamic_rnn(rnn_cell,
+                                                                          final_input,
+                                                                          self.num_ctx_placeholders,
+                                                                          dtype=tf.float32)
+
+            if self.params.rnn == 'lstm':
+                final_state = final_state[0]
+
+            print 'Extracted rnn hidden states.'
 
 
 
