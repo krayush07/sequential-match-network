@@ -34,6 +34,7 @@ class ParamsClass():
 
         self.rnn = 'lstm'
         self.USE_SAME_CELL = False
+        self.train_op = 'sgd'
 
         self.batch_size = 32
         self.vocab_size = 30

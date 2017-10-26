@@ -16,8 +16,12 @@ class SMN():
         word_matching_matrix, hidden_emb_matching_matrix = self.compute_matching_matrix()
         conv_hidden_output, conv_word_output = self.get_cnn_output(hidden_emb_matching_matrix, word_matching_matrix)
         accumulated_word_match, accumulated_hidden_match = self.get_accumulated_match(conv_word_output, conv_hidden_output)
-        self.get_final_hidden_state(accumulated_word_match, accumulated_hidden_match)
-        # self.compute_loss()
+        final_hidden_state = self.get_final_hidden_state(accumulated_word_match, accumulated_hidden_match)
+        logits = self.convert_to_logits(final_hidden_state)
+        combined_loss, ce_loss = self.compute_loss(logits)
+
+        if (self.params.mode == 'TR'):
+            self.train(combined_loss)
 
     def get_cnn_output(self, hidden_emb_matching_matrix, word_matching_matrix):
         conv_word_output = self.conv_pipeline_init(word_matching_matrix, 'word_conv')
@@ -241,14 +245,86 @@ class SMN():
             rnn_cell = self.create_rnn_cell('last_layer', option=self.params.rnn)
 
             final_output, final_state = tf.nn.dynamic_rnn(rnn_cell,
-                                                                          final_input,
-                                                                          self.num_ctx_placeholders,
-                                                                          dtype=tf.float32)
+                                                          final_input,
+                                                          self.num_ctx_placeholders,
+                                                          dtype=tf.float32)
 
             if self.params.rnn == 'lstm':
                 final_state = final_state[0]
 
-            print 'Extracted rnn hidden states.'
+            print 'Extracted final rnn hidden states.'
+            return final_state
+
+    def convert_to_logits(self, final_hidden_state):
+        with tf.variable_scope('logits'):
+            self.logits = tf.contrib.layers.fully_connected (inputs=final_hidden_state, num_outputs=2)
+            return self.logits
+
+    def compute_loss(self, logits):
+        with tf.variable_scope('loss'):
+            cross_entropy_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.label, logits=logits, name='ce_loss')
+
+            total_ce_loss = tf.reduce_sum(cross_entropy_loss, name='total_ce_loss')
+
+            if (self.params.mode == 'TR'):
+                tvars = tf.trainable_variables()
+                l2_regularizer = tf.contrib.layers.l2_regularizer(scale=self.params.REG_CONSTANT, scope=None)
+                regularization_penalty = tf.contrib.layers.apply_regularization(l2_regularizer, tvars)
+                reg_penalty_word_emb = tf.contrib.layers.apply_regularization(l2_regularizer, [self.word_emb_matrix])
+                combined_loss = cross_entropy_loss + regularization_penalty - reg_penalty_word_emb
+
+                return combined_loss, total_ce_loss
+
+            else:
+                return total_ce_loss, total_ce_loss
+
+
+
+    def train(self, combined_loss):
+        global optimizer
+        with tf.variable_scope('train'):
+            self._lr = tf.Variable(0.0, trainable=False, name='learning_rate')
+
+            with tf.variable_scope('optimize'):
+
+                tvars = tf.trainable_variables()
+                grads = tf.gradients(combined_loss, tvars)
+                grads, _ = tf.clip_by_global_norm(grads, clip_norm=self.params.max_grad_norm)
+                grad_var_pairs = zip(grads, tvars)
+
+                if self.params.train_op == 'sgd':
+                    optimizer = tf.train.GradientDescentOptimizer(self.lr, name='sgd')
+                elif self.params.train_op == 'adam':
+                    optimizer = tf.train.AdamOptimizer(learning_rate=self.lr, name='adam')
+                elif self.params.train_op == 'adadelta':
+                    optimizer = tf.train.AdadeltaOptimizer(learning_rate=self.lr, epsilon=1e-6, name='adadelta')
+                self._train_op = optimizer.apply_gradients(grad_var_pairs, name='apply_grad')
+
+            # if self.params.log:
+            #     grad_summaries = []
+            #     for grad, var in grad_var_pairs:
+            #         if grad is not None:
+            #             grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(var.name), grad)
+            #             sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(var.name), tf.nn.zero_fraction(grad))
+            #             grad_summaries.append(grad_hist_summary)
+            #             grad_summaries.append(sparsity_summary)
+            #     grad_summaries_merged = tf.summary.merge(grad_summaries)
+            #
+            #     self.merged_train = tf.summary.merge([self.train_loss, self.train_accuracy, grad_summaries_merged])
+            # else:
+            #     self.merged_train = []
+
+    def assign_lr(self, session, lr_value):
+        session.run(tf.assign(self.lr, lr_value))
+
+    @property
+    def lr(self):
+        return self._lr
+
+    @property
+    def train_op(self):
+        return self._train_op
+
 
 
 
