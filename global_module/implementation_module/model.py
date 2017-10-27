@@ -24,59 +24,63 @@ class SMN():
             self.train(combined_loss)
 
     def get_cnn_output(self, hidden_emb_matching_matrix, word_matching_matrix):
-        conv_word_output = self.conv_pipeline_init(word_matching_matrix, 'word_conv')
-        conv_hidden_output = self.conv_pipeline_init(hidden_emb_matching_matrix, 'hidden_conv')
-        return conv_hidden_output, conv_word_output
+        with tf.variable_scope('cnn_network'):
+            conv_word_output = self.conv_pipeline_init(word_matching_matrix, 'word_conv')
+            conv_hidden_output = self.conv_pipeline_init(hidden_emb_matching_matrix, 'hidden_conv')
+            return conv_hidden_output, conv_word_output
 
     def get_initial_hidden_state(self):
-        self.extract_ctx_hidden_embedding('layer1')
-        self.extract_resp_hidden_embedding('layer1')
+        with tf.variable_scope('initial_rnn'):
+            self.extract_ctx_hidden_embedding('layer1')
+            self.extract_resp_hidden_embedding('layer1')
 
     def create_placeholders(self):
-        self.ctx = tf.placeholder(dtype=tf.int32,
-                                  shape=[None,
-                                         self.params.NUM_CONTEXT,
-                                         self.params.MAX_CTX_UTT_LENGTH],
-                                  name='ctx_placeholder')
+        with tf.variable_scope('placeholder'):
+            self.ctx = tf.placeholder(dtype=tf.int32,
+                                      shape=[None,
+                                             self.params.NUM_CONTEXT,
+                                             self.params.MAX_CTX_UTT_LENGTH],
+                                      name='ctx_placeholder')
 
-        self.ctx_len_placeholders = tf.placeholder(dtype=tf.int32,
-                                                   shape=[None, self.params.NUM_CONTEXT],
-                                                   name='ctx_len_placeholder')
+            self.ctx_len_placeholders = tf.placeholder(dtype=tf.int32,
+                                                       shape=[None, self.params.NUM_CONTEXT],
+                                                       name='ctx_len_placeholder')
 
-        self.num_ctx_placeholders = tf.placeholder(dtype=tf.int32,
-                                                   shape=[None],
-                                                   name='num_ctx_placeholder')
+            self.num_ctx_placeholders = tf.placeholder(dtype=tf.int32,
+                                                       shape=[None],
+                                                       name='num_ctx_placeholder')
 
-        self.resp = tf.placeholder(dtype=tf.int32,
-                                   shape=[None, self.params.MAX_RESP_UTT_LENGTH],
-                                   name='res_placeholder')
+            self.resp = tf.placeholder(dtype=tf.int32,
+                                       shape=[None, self.params.MAX_RESP_UTT_LENGTH],
+                                       name='res_placeholder')
 
-        self.resp_len_placeholders = tf.placeholder(dtype=tf.int32,
-                                                    shape=[None],
-                                                    name='resp_len_placeholder')
+            self.resp_len_placeholders = tf.placeholder(dtype=tf.int32,
+                                                        shape=[None],
+                                                        name='resp_len_placeholder')
 
-        self.label = tf.placeholder(dtype=tf.float32,
-                                    shape=[None],
-                                    name='response_label')
+            self.label = tf.placeholder(dtype=tf.float32,
+                                        shape=[None],
+                                        name='response_label')
 
     def extract_word_embedding(self):
-        self.word_emb_matrix = tf.get_variable("word_embedding_matrix",
-                                               shape=[self.params.vocab_size, self.params.EMB_DIM],
-                                               dtype=tf.float32,
-                                               regularizer=tf.contrib.layers.l2_regularizer(0.0),
-                                               trainable=self.params.is_word_trainable)
+        with tf.variable_scope('emb_lookup'):
+            self.word_emb_matrix = tf.get_variable("word_embedding_matrix",
+                                                   shape=[self.params.vocab_size, self.params.EMB_DIM],
+                                                   dtype=tf.float32,
+                                                   regularizer=tf.contrib.layers.l2_regularizer(0.0),
+                                                   trainable=self.params.is_word_trainable)
 
-        self.ctx_word_emb = tf.nn.embedding_lookup(params=self.word_emb_matrix,
-                                                   ids=self.ctx,
-                                                   name='ctx_word_emb',
-                                                   validate_indices=True)
+            self.ctx_word_emb = tf.nn.embedding_lookup(params=self.word_emb_matrix,
+                                                       ids=self.ctx,
+                                                       name='ctx_word_emb',
+                                                       validate_indices=True)
 
-        self.resp_word_emb = tf.nn.embedding_lookup(params=self.word_emb_matrix,
-                                                    ids=self.resp,
-                                                    name='resp_word_emb',
-                                                    validate_indices=True)
+            self.resp_word_emb = tf.nn.embedding_lookup(params=self.word_emb_matrix,
+                                                        ids=self.resp,
+                                                        name='resp_word_emb',
+                                                        validate_indices=True)
 
-        print 'Extracted word embedding'
+            print 'Extracted word embedding'
 
     def create_rnn_cell(self, name, option='lstm'):
         if option == 'lstm':
@@ -131,28 +135,32 @@ class SMN():
             print 'Extracted rnn hidden states.'
 
     def compute_matching_matrix(self):
-        ctx_word_emb_split = tf.split(self.ctx_word_emb, num_or_size_splits=self.params.NUM_CONTEXT, axis=1)
-        ctx_hidden_emb_split = tf.split(self.rnn_ctx_output, self.params.NUM_CONTEXT, axis=1)
+        with tf.variable_scope('match_network'):
 
-        word_matching_matrix = []
+            with tf.variable_scope('word_match'):
+                ctx_word_emb_split = tf.split(self.ctx_word_emb, num_or_size_splits=self.params.NUM_CONTEXT, axis=1)
+                word_matching_matrix = []
+                for each_ctx in ctx_word_emb_split:
+                    word_matching_matrix.append(tf.matmul(tf.squeeze(each_ctx, axis=1),
+                                                          self.resp_word_emb,
+                                                          transpose_b=True,
+                                                          name='ctx_word_transform'))
 
-        for each_ctx in ctx_word_emb_split:
-            word_matching_matrix.append(tf.matmul(tf.squeeze(each_ctx, axis=1), self.resp_word_emb, transpose_b=True))
+            with tf.variable_scope('hidden_match'):
+                ctx_hidden_emb_split = tf.split(self.rnn_ctx_output, self.params.NUM_CONTEXT, axis=1)
+                hidden_matching_matrix = []
+                self.linear_transform = tf.get_variable(name='linear_transform',
+                                                        shape=[self.params.RNN_HIDDEN_DIM, self.params.RNN_HIDDEN_DIM],
+                                                        dtype=tf.float32)
 
-        hidden_matching_matrix = []
+                for each_ctx in ctx_hidden_emb_split:
+                    each_ctx_reshaped = tf.reshape(tf.squeeze(each_ctx, axis=1), [-1, self.params.RNN_HIDDEN_DIM])
+                    mul1 = tf.matmul(each_ctx_reshaped, self.linear_transform)
+                    mul1_reshaped = tf.reshape(mul1, [-1, self.params.MAX_CTX_UTT_LENGTH, self.params.RNN_HIDDEN_DIM])
+                    mul2 = tf.matmul(mul1_reshaped, self.rnn_resp_output, transpose_b=True, name='ctx_hidden_transform')
+                    hidden_matching_matrix.append(mul2)
 
-        self.linear_transform = tf.get_variable(name='linear_transform',
-                                                shape=[self.params.RNN_HIDDEN_DIM, self.params.RNN_HIDDEN_DIM],
-                                                dtype=tf.float32)
-
-        for each_ctx in ctx_hidden_emb_split:
-            each_ctx_reshaped = tf.reshape(tf.squeeze(each_ctx, axis=1), [-1, self.params.RNN_HIDDEN_DIM])
-            mul1 = tf.matmul(each_ctx_reshaped, self.linear_transform)
-            mul1_reshaped = tf.reshape(mul1, [-1, self.params.MAX_CTX_UTT_LENGTH, self.params.RNN_HIDDEN_DIM])
-            mul2 = tf.matmul(mul1_reshaped, self.rnn_resp_output, transpose_b=True)
-            hidden_matching_matrix.append(mul2)
-
-        print 'Matching matrix computation done.'
+            print 'Matching matrix computation done.'
         return word_matching_matrix, hidden_matching_matrix
 
     def conv_layer(self, conv_input, filter_shape, num_filters, stride, padding, name):
@@ -217,7 +225,7 @@ class SMN():
         return pool2_output
 
     def get_accumulated_match(self, word_input, hidden_input):
-        with tf.variable_scope('matching_accumulation'):
+        with tf.variable_scope('accumulation_network'):
             concat_word_input = []
             concat_hidden_input = []
             for i in range(len(word_input)):
@@ -257,28 +265,28 @@ class SMN():
 
     def convert_to_logits(self, final_hidden_state):
         with tf.variable_scope('logits'):
-            self.logits = tf.contrib.layers.fully_connected (inputs=final_hidden_state, num_outputs=2)
+            self.logits = tf.contrib.layers.fully_connected(inputs=final_hidden_state, num_outputs=2)
             return self.logits
 
     def compute_loss(self, logits):
+        global regularization_penalty, reg_penalty_word_emb
         with tf.variable_scope('loss'):
-            cross_entropy_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.label, logits=logits, name='ce_loss')
+            with tf.variable_scope('cross_ent'):
+                cross_entropy_loss = tf.nn.softmax_cross_entropy_with_logits(labels=self.label, logits=logits, name='ce_loss')
+                total_ce_loss = tf.reduce_sum(cross_entropy_loss, name='total_ce_loss')
 
-            total_ce_loss = tf.reduce_sum(cross_entropy_loss, name='total_ce_loss')
+            with tf.variable_scope('reg_loss'):
+                if (self.params.mode == 'TR'):
+                    tvars = tf.trainable_variables()
+                    l2_regularizer = tf.contrib.layers.l2_regularizer(scale=self.params.REG_CONSTANT, scope=None)
+                    regularization_penalty = tf.contrib.layers.apply_regularization(l2_regularizer, tvars)
+                    reg_penalty_word_emb = tf.contrib.layers.apply_regularization(l2_regularizer, [self.word_emb_matrix])
 
-            if (self.params.mode == 'TR'):
-                tvars = tf.trainable_variables()
-                l2_regularizer = tf.contrib.layers.l2_regularizer(scale=self.params.REG_CONSTANT, scope=None)
-                regularization_penalty = tf.contrib.layers.apply_regularization(l2_regularizer, tvars)
-                reg_penalty_word_emb = tf.contrib.layers.apply_regularization(l2_regularizer, [self.word_emb_matrix])
+            if self.params.mode == 'TR':
                 combined_loss = cross_entropy_loss + regularization_penalty - reg_penalty_word_emb
-
                 return combined_loss, total_ce_loss
-
             else:
                 return total_ce_loss, total_ce_loss
-
-
 
     def train(self, combined_loss):
         global optimizer
@@ -300,19 +308,19 @@ class SMN():
                     optimizer = tf.train.AdadeltaOptimizer(learning_rate=self.lr, epsilon=1e-6, name='adadelta')
                 self._train_op = optimizer.apply_gradients(grad_var_pairs, name='apply_grad')
 
-            # if self.params.log:
-            #     grad_summaries = []
-            #     for grad, var in grad_var_pairs:
-            #         if grad is not None:
-            #             grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(var.name), grad)
-            #             sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(var.name), tf.nn.zero_fraction(grad))
-            #             grad_summaries.append(grad_hist_summary)
-            #             grad_summaries.append(sparsity_summary)
-            #     grad_summaries_merged = tf.summary.merge(grad_summaries)
-            #
-            #     self.merged_train = tf.summary.merge([self.train_loss, self.train_accuracy, grad_summaries_merged])
-            # else:
-            #     self.merged_train = []
+                # if self.params.log:
+                #     grad_summaries = []
+                #     for grad, var in grad_var_pairs:
+                #         if grad is not None:
+                #             grad_hist_summary = tf.summary.histogram("{}/grad/hist".format(var.name), grad)
+                #             sparsity_summary = tf.summary.scalar("{}/grad/sparsity".format(var.name), tf.nn.zero_fraction(grad))
+                #             grad_summaries.append(grad_hist_summary)
+                #             grad_summaries.append(sparsity_summary)
+                #     grad_summaries_merged = tf.summary.merge(grad_summaries)
+                #
+                #     self.merged_train = tf.summary.merge([self.train_loss, self.train_accuracy, grad_summaries_merged])
+                # else:
+                #     self.merged_train = []
 
     def assign_lr(self, session, lr_value):
         session.run(tf.assign(self.lr, lr_value))
@@ -324,8 +332,6 @@ class SMN():
     @property
     def train_op(self):
         return self._train_op
-
-
 
 
 def main():
