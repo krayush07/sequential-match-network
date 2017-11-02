@@ -36,7 +36,7 @@ class ParamsClass():
         self.USE_SAME_CELL = False
         self.train_op = 'sgd'
 
-        self.batch_size = 32
+        self.batch_size = 2
         self.vocab_size = 30
         self.is_word_trainable = True
 
