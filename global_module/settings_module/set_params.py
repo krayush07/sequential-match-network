@@ -20,6 +20,8 @@ class ParamsClass():
         self.enable_shuffle = False
         self.enable_checkpoint = False
         self.all_lowercase = False
+        self.log = False
+        self.log_step = 9
 
         if (mode == 'TE'):
             self.enable_shuffle = False

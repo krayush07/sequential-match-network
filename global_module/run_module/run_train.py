@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import global_module.implementation_module.train as train
-from global_module.pre_processing_module import build_word_vocab, build_sampled_training_file, generate_label_file
+from global_module.pre_processing_module import build_word_vocab, build_sampled_training_file
 from global_module.settings_module import set_dict
 
 
@@ -32,7 +32,6 @@ def train_util():
     """
     build_sampled_training_file.util()
     build_word_vocab.util()
-    generate_label_file.util()
     dict_obj = load_dictionary()
     call_train(dict_obj)
     return None
