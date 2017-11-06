@@ -32,7 +32,7 @@ class ParamsClass():
         self.NUM_CONTEXT = 4
         self.MAX_CTX_UTT_LENGTH = 40
         self.MAX_RESP_UTT_LENGTH = 60
-        self.RNN_HIDDEN_DIM = 100
+        self.RNN_HIDDEN_DIM = 50
 
         self.rnn = 'lstm'
         self.USE_SAME_CELL = False
@@ -52,7 +52,7 @@ class ParamsClass():
 
         ''' PARAMS FOR CONV BLOCK '''
         self.num_filters = 128
-        self.filter_width = [2, 3, 5, 7, 9]
+        self.filter_width = [2, 3, 5]
         self.conv_activation = 'RELU'
         self.conv_padding = 'VALID'
 

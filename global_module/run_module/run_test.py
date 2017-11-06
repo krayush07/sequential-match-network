@@ -4,7 +4,6 @@ from __future__ import print_function
 
 from global_module.settings_module import set_dict
 import global_module.implementation_module.test as test_model
-from global_module.utility_code import convert_pred_to_class as convert
 
 
 #########################################################
@@ -21,7 +20,7 @@ def load_dictionary():
 
 def initialize_test_session():
     dict_obj = test_util()
-    session, mtest = test_model.init_test()
+    session, mtest = test_model.init_test(dict_obj)
     return session, mtest, dict_obj
 
 
@@ -46,7 +45,6 @@ def main():
     print('STARTING TESTING')
     session, mtest, dict_obj = initialize_test_session()
     call_test(session, mtest, dict_obj)
-    convert.convert(dict_obj.rel_dir.test_cost_path)
 
 
 if __name__ == '__main__':

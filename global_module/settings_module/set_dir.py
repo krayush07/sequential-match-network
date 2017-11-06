@@ -39,6 +39,7 @@ class Directory():
         elif (mode == 'TE'):
             self.data_filename = self.data_path + '/tokenized_test.txt'
             self.label_filename = self.data_path + '/label_test.txt'
+            self.gold_data = self.data_path + '/gold_test.txt'
 
         '''Directory to utility dataset'''
         self.goal_train_path = self.data_path + '/goal_train.txt'  # goal training file
@@ -50,8 +51,10 @@ class Directory():
         self.model_name = '/cnn_classifier.ckpt'  # model name .ckpt is the model extension
         ''' ********** ********* ******** ********* ********* ********* ******** ************* '''''
 
-        self.test_cost_path = self.output_path + '/dummy.txt'  # test cost output
-        self.clstm_vector_path = self.output_path + '/dummy_vector.txt'  # test vector output
+        self.test_cost_path = self.output_path + '/test_cost.txt'  # test cost output
+        self.test_pred_path = self.output_path + '/test_pred.txt'
+        self.test_seq_op_path = self.output_path + '/test_seq_op.txt'
+
 
         '''Directory to csv and pkl files'''
         self.vocab_size_file = self.vocab_path + '/vocab_size.txt'
