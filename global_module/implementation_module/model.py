@@ -37,29 +37,29 @@ class SMN:
     def create_placeholders(self):
         with tf.variable_scope('placeholder'):
             self.ctx = tf.placeholder(dtype=tf.int32,
-                                      shape=[self.params.batch_size,
+                                      shape=[None,
                                              self.params.NUM_CONTEXT,
                                              self.params.MAX_CTX_UTT_LENGTH],
                                       name='ctx_placeholder')
 
             self.ctx_len_placeholders = tf.placeholder(dtype=tf.int32,
-                                                       shape=[self.params.batch_size, self.params.NUM_CONTEXT],
+                                                       shape=[None, self.params.NUM_CONTEXT],
                                                        name='ctx_len_placeholder')
 
             self.num_ctx_placeholders = tf.placeholder(dtype=tf.int32,
-                                                       shape=[self.params.batch_size],
+                                                       shape=[None],
                                                        name='num_ctx_placeholder')
 
             self.resp = tf.placeholder(dtype=tf.int32,
-                                       shape=[self.params.batch_size, self.params.MAX_RESP_UTT_LENGTH],
+                                       shape=[None, self.params.MAX_RESP_UTT_LENGTH],
                                        name='res_placeholder')
 
             self.resp_len_placeholders = tf.placeholder(dtype=tf.int32,
-                                                        shape=[self.params.batch_size],
+                                                        shape=[None],
                                                         name='resp_len_placeholder')
 
             self.label = tf.placeholder(dtype=tf.int32,
-                                        shape=[self.params.batch_size],
+                                        shape=[None],
                                         name='response_label')
 
     def extract_word_embedding(self):

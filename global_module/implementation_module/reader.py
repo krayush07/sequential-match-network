@@ -121,6 +121,9 @@ class DataReader:
             curr_resp_len_arr = np.array(resp_len_arr[i * batch_size: (i + 1) * batch_size], dtype=np.int32)
             curr_label_arr = np.array(label_arr[i * batch_size: (i + 1) * batch_size], dtype=np.int32)
 
+            if batch_size == 1:
+                curr_resp_arr = np.expand_dims(curr_resp_arr, axis=0)
+
             yield (curr_ctx_arr, curr_ctx_len_arr, curr_num_ctx_arr, curr_resp_arr, curr_resp_len_arr, curr_label_arr)
             # print("A")
 
