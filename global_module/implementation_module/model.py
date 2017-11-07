@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from global_module.settings_module import set_params, set_dir
+from global_module.settings_module import ParamsClass, Directory
 
 
 class SMN:
@@ -370,7 +370,7 @@ class SMN:
 
 
 def main():
-    SMN(set_params.ParamsClass(), set_dir.Directory('TR'))
+    SMN(ParamsClass(), Directory())
 
 
 if __name__ == '__main__':

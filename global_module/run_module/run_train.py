@@ -2,17 +2,17 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import global_module.implementation_module.train as train
-from global_module.pre_processing_module import build_word_vocab, build_sampled_training_file, generate_label_file
-from global_module.settings_module import set_dict
+from global_module.implementation_module import Train
+from global_module.pre_processing_module import BuildWordVocab, GenerateLabel, SampleTrainingData
+from global_module.settings_module import Dictionary
 
 
-def load_dictionary():
-    """
-    Utility function to load training vocab files
-    :return:
-    """
-    return set_dict.Dictionary()
+# def load_dictionary():
+#     """
+#     Utility function to load training vocab files
+#     :return:
+#     """
+#     return set_dict.Dictionary()
 
 
 def call_train(dict_obj):
@@ -21,7 +21,7 @@ def call_train(dict_obj):
     :param dict_obj: dictionary object
     :return: None
     """
-    train.run_train(dict_obj)
+    Train().run_train(dict_obj)
     return
 
 
@@ -30,10 +30,10 @@ def train_util():
     Utility function to execute the training pipeline
     :return: None
     """
-    build_sampled_training_file.util()
-    build_word_vocab.util()
-    generate_label_file.util()
-    dict_obj = load_dictionary()
+    SampleTrainingData().util()
+    BuildWordVocab().util()
+    GenerateLabel().util()
+    dict_obj = Dictionary()
     call_train(dict_obj)
     return None
 
