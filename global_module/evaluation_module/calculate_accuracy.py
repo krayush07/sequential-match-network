@@ -66,7 +66,7 @@ for l1, l2 in zip(output_seq, test_act_file):
         correct_incorrect_file.write("correct\n")
     else:
         output_seq_info.write(l1 + "\t" + "INCORRECT" + "\n")
-        unmatched_file.write(str(int(total)) + "\t" + l1.split("\t")[2] + "\t" + l2.split("\t")[2] + "\n")
+        unmatched_file.write(str(int(total)) + "\t" + "==PREDICTED==\t" + l1.split("\t")[-1] + "\t" + "==CORRECT==\t" + l2.split("\t")[-1] + "\n")
         correct_incorrect_file.write("incorrect\n")
 
 print(correct, total)
